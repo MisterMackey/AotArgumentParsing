@@ -33,43 +33,10 @@ public partial class ParserExample
 			new FlagAttribute("f", "flag", "An example flag"),
 		};
 
-		// normally this would be extracted into its own proper methods,
-		// but this increases the risk of clobbering user written code so
-		// we will inline it all and keep our promise of only generating
-		// the Parse method
+		var tokens = new ArgumentTokenizer().TokenizeArguments(args, options, positionals, flags);
 
-		string CategorizeArgument(string arg)
-		{
-			if (arg.StartsWith("--"))
-			{
-				// grab the long name
-				string longName = arg.Substring(2);
-				// check if it matches any of the options
-				foreach (var option in options)
-				{
-					if (option.LongName == longName)
-					{
-						return "option";
-					}
-				}
-				// check if it matches any of the flags
-				foreach (var flag in flags)
-				{
-					if (flag.LongName == longName)
-					{
-						return "flag";
-					}
-				}
-				// reached here? unknown argument
-			}
-				
-		}
 
-		// loop through the args array and parse the options, positionals, and flags
-		for (int i = 0; i < args.Length; i++)
-		{
-			var arg = args[i];
-			string argType = CategorizeArgument(arg);
-		}
+
+		return (instance, errors);
 	}
 }

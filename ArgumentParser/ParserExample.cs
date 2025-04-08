@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 
-namespace ArgumentParser;
+namespace ArgumentParser
+{
+
 
 //[ParameterCollection]
 public partial class ParserExample
@@ -39,4 +42,6 @@ public partial class ParserExample
 
 		return (instance, errors);
 	}
+}
+
 }

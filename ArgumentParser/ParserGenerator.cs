@@ -1,7 +1,10 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Collections.Generic;
+using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace ArgumentParser;
+namespace ArgumentParser
+{
 
 [Generator]
 public class ParserAugmenter : ISourceGenerator
@@ -13,7 +16,8 @@ public class ParserAugmenter : ISourceGenerator
 
 	public void Execute(GeneratorExecutionContext context)
 	{
-		if (context.SyntaxReceiver is not ArgumentSpecificationSyntaxReceiver receiver)
+		var receiver = context.SyntaxReceiver as ArgumentSpecificationSyntaxReceiver;
+		if (receiver == null)
 			return;
 
 		foreach (var classDeclaration in receiver.CandidateClasses)
@@ -24,7 +28,7 @@ public class ParserAugmenter : ISourceGenerator
 
 	private class ArgumentSpecificationSyntaxReceiver : ISyntaxReceiver
 	{
-		public List<ClassDeclarationSyntax> CandidateClasses { get; } = new();
+		public List<ClassDeclarationSyntax> CandidateClasses { get; } = new List<ClassDeclarationSyntax>();
 
 		public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
 		{
@@ -43,4 +47,6 @@ public class ParserAugmenter : ISourceGenerator
 	{
 		// Generate the parser code for the class
 	}
+}
+
 }

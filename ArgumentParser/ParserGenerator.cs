@@ -6,47 +6,91 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace ArgumentParser
 {
 
-[Generator]
-public class ParserAugmenter : ISourceGenerator
-{
-	public void Initialize(GeneratorInitializationContext context)
+	[Generator(LanguageNames.CSharp)]
+	public class ParserAugmenter : IIncrementalGenerator
 	{
-		context.RegisterForSyntaxNotifications(() => new ArgumentSpecificationSyntaxReceiver());
-	}
-
-	public void Execute(GeneratorExecutionContext context)
-	{
-		var receiver = context.SyntaxReceiver as ArgumentSpecificationSyntaxReceiver;
-		if (receiver == null)
-			return;
-
-		foreach (var classDeclaration in receiver.CandidateClasses)
+		public void Initialize(IncrementalGeneratorInitializationContext initializationContext)
 		{
-			AddParserCode(classDeclaration, context);
-		}
-	}
+			var parameterCollectionClasses = initializationContext.SyntaxProvider
+			.ForAttributeWithMetadataName(
+			    "ArgumentParser.ParameterCollectionAttribute", // Fully qualified name of the attribute
+			    (node, _) => node is ClassDeclarationSyntax, // Filter for class declarations
+			    (context, _) => new ParserClassDecleration
+			    {
+				    ClassDeclaration = context.TargetNode as ClassDeclarationSyntax,
+				    SemanticModel = context.SemanticModel
+			    }
+			);
 
-	private class ArgumentSpecificationSyntaxReceiver : ISyntaxReceiver
-	{
-		public List<ClassDeclarationSyntax> CandidateClasses { get; } = new List<ClassDeclarationSyntax>();
-
-		public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
-		{
-			// Look for class declarations with the ArgumentSpecificationAttribute
-			if (syntaxNode is ClassDeclarationSyntax classDeclaration &&
-			    classDeclaration.AttributeLists
-			        .SelectMany(al => al.Attributes)
-			        .Any(attr => attr.Name.ToString().Contains("ArgumentSpecificationAttribute")))
+			// register output
+			initializationContext.RegisterSourceOutput(parameterCollectionClasses, (context, classDeclaration) =>
 			{
-				CandidateClasses.Add(classDeclaration);
-			}
+				DoStuff(context, classDeclaration.ClassDeclaration, classDeclaration.SemanticModel);
+			});
+		}
+
+		private void DoStuff(SourceProductionContext context, ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+		{
+			// get all properties
+			var properties = classDeclaration.Members.OfType<PropertyDeclarationSyntax>().ToList();
+			// get all of them with the OptionAttribute
+			var options = properties
+				.Where(p => p.AttributeLists
+					.SelectMany(al => al.Attributes)
+					.Any(attr => {
+						if (!(semanticModel.GetSymbolInfo(attr).Symbol is IMethodSymbol symbol))
+							return false;
+						return symbol.ContainingType.ToDisplayString().Contains("OptionAttribute");
+					}))
+				.ToList();
+			// get all of them with the PositionalAttribute
+			var positionals = properties
+				.Where(p => p.AttributeLists
+					.SelectMany(al => al.Attributes)
+					.Any(attr => {
+						if (!(semanticModel.GetSymbolInfo(attr).Symbol is IMethodSymbol symbol))
+							return false;
+						return symbol.ContainingType.ToDisplayString().Contains("PositionalAttribute");
+					}))
+				.ToList();
+			// get all of them with the FlagAttribute
+			var flags = properties
+				.Where(p => p.AttributeLists
+					.SelectMany(al => al.Attributes)
+					.Any(attr => {
+						if (!(semanticModel.GetSymbolInfo(attr).Symbol is IMethodSymbol symbol))
+							return false;
+						return symbol.ContainingType.ToDisplayString().Contains("FlagAttribute");
+					}))
+				.ToList();
+			var sourceText = GenerateSourceText(classDeclaration, options, positionals, flags);
+			context.AddSource($"{classDeclaration.Identifier.Text}_Parser.g.cs", sourceText);
+		}
+
+		private string GenerateSourceText(ClassDeclarationSyntax classDeclaration, List<PropertyDeclarationSyntax> options, List<PropertyDeclarationSyntax> positionals, List<PropertyDeclarationSyntax> flags)
+		{
+			var className = classDeclaration.Identifier.Text;
+			var namespaceName = classDeclaration.FirstAncestorOrSelf<NamespaceDeclarationSyntax>()?.Name.ToString() ?? "GlobalNamespace";
+			string sourceText = $@"
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace {namespaceName}
+{{
+	public partial class {className}
+	{{
+	}}
+}}";
+  
+			return sourceText;
+		}	
+
+		private struct ParserClassDecleration
+		{
+			public ClassDeclarationSyntax ClassDeclaration { get; set; }
+			public SemanticModel SemanticModel { get; set; }
 		}
 	}
-
-	private void AddParserCode(ClassDeclarationSyntax classDeclaration, GeneratorExecutionContext context)
-	{
-		// Generate the parser code for the class
-	}
-}
 
 }
